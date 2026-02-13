@@ -1,0 +1,8 @@
+{
+  "name": "Thermodynamics Pro: Engineering Analyzer",
+  "description": "A comprehensive professional simulation platform for thermodynamic cycles, heat exchangers, and conduction systems with real-time analysis and visualization.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
