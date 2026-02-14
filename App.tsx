@@ -1,5 +1,5 @@
 
-import React from 'react';
+import * as React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import LandingPage from './LandingPage';
 import Analyzer from './Analyzer';

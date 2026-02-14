@@ -228,6 +228,27 @@ export const thermoEngine = {
   },
 
   /**
+   * Convection Heat Transfer
+   */
+  calculateConvection: (h: number, T_surf: number, T_inf: number, area: number = 1) => {
+    const Q_dot = h * area * (T_surf - T_inf);
+    return { Q_dot };
+  },
+
+  /**
+   * Radiation Heat Transfer
+   */
+  calculateRadiation: (epsilon: number, T_surf: number, T_surr: number, area: number = 1) => {
+    const SIGMA = 5.67e-8; // Stefan-Boltzmann constant
+    // Convert Temperatures to Kelvin (assuming input is in C)
+    const T_surf_K = T_surf + 273.15;
+    const T_surr_K = T_surr + 273.15;
+
+    const Q_dot = epsilon * SIGMA * area * (Math.pow(T_surf_K, 4) - Math.pow(T_surr_K, 4));
+    return { Q_dot };
+  },
+
+  /**
    * Process Validation (2nd Law)
    */
   validateProcess: (P1: number, T1: number, P2: number, T2: number, Q_transfer: number, T_surr: number) => {

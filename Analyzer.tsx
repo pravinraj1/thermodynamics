@@ -1,12 +1,14 @@
 
-import React, { useState, useMemo } from 'react';
+import * as React from 'react';
+import { useState, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
+import { Download } from 'lucide-react';
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, ReferenceLine, Label
 } from 'recharts';
 import { ModuleType, UnitSystem, UNIT_LABELS, GasProcess, CycleType } from './types';
 import { thermoEngine } from './thermoEngine';
-import { Card, InputField, Badge, Button, TabButton } from './components';
+import { Card, InputField, Badge, Button, TabButton, UnitAwareInput } from './components';
 
 const Analyzer: React.FC = () => {
     const location = useLocation();
@@ -73,12 +75,65 @@ const Analyzer: React.FC = () => {
     });
     const condResult = useMemo(() => thermoEngine.calculateConduction(condState.layers, condState.T_in, condState.T_out), [condState]);
 
+    // Convection
+    const [convState, setConvState] = useState({ h: 25, T_surf: 100, T_inf: 25, area: 1 });
+    const convResult = useMemo(() => thermoEngine.calculateConvection(convState.h, convState.T_surf, convState.T_inf, convState.area), [convState]);
+
+    // Radiation
+    const [radState, setRadState] = useState({ epsilon: 0.8, T_surf: 500, T_surr: 30, area: 1 });
+    const radResult = useMemo(() => thermoEngine.calculateRadiation(radState.epsilon, radState.T_surf, radState.T_surr, radState.area), [radState]);
+
     // Validation
     const [validationState, setValidationState] = useState({ P1: 100, T1: 300, P2: 500, T2: 600, Q: 0, T_surr: 298 });
     const validationResult = useMemo(() => thermoEngine.validateProcess(
         validationState.P1, validationState.T1, validationState.P2, validationState.T2, validationState.Q, validationState.T_surr
     ), [validationState]);
 
+
+    // --- EXPORT ---
+    const handleExport = () => {
+        let data: any = { unitSystem, timestamp: new Date().toISOString() };
+        switch (activeModule) {
+            case ModuleType.IDEAL_GAS:
+                data = { ...data, module: 'Ideal Gas', state: igState, result: igResult };
+                break;
+            case ModuleType.CYCLES:
+                data = { ...data, module: 'Cycles', cycleType: activeCycle };
+                if (activeCycle === CycleType.RANKINE) data = { ...data, state: rankineState, result: rankineResult };
+                else if (activeCycle === CycleType.BRAYTON) data = { ...data, state: braytonState, result: braytonResult };
+                else if (activeCycle === CycleType.OTTO) data = { ...data, state: ottoState, result: ottoResult };
+                else if (activeCycle === CycleType.DIESEL) data = { ...data, state: dieselState, result: dieselResult };
+                break;
+            case ModuleType.HEAT_EXCHANGER:
+                data = { ...data, module: 'Heat Exchanger', state: hxState, result: hxResult };
+                break;
+            case ModuleType.REFRIGERATION:
+                data = { ...data, module: 'Refrigeration', state: vccState, result: vccResult };
+                break;
+            case ModuleType.CONDUCTION:
+                data = { ...data, module: 'Conduction', state: condState, result: condResult };
+                break;
+            case ModuleType.CONVECTION:
+                data = { ...data, module: 'Convection', state: convState, result: convResult };
+                break;
+            case ModuleType.RADIATION:
+                data = { ...data, module: 'Radiation', state: radState, result: radResult };
+                break;
+            case ModuleType.VALIDATION:
+                data = { ...data, module: 'Validation', state: validationState, result: validationResult };
+                break;
+        }
+
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `thermo_${activeModule.toLowerCase()}_${new Date().getTime()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
 
     // --- RENDER HELPERS ---
 
@@ -93,6 +148,12 @@ const Analyzer: React.FC = () => {
                     </h1>
                 </div>
                 <div className="flex bg-slate-100 p-1 rounded-lg">
+                    <button
+                        onClick={handleExport}
+                        className="px-3 py-1 text-sm font-medium text-slate-600 hover:text-blue-600 flex items-center gap-2 border-r border-slate-200 pr-3 mr-3"
+                    >
+                        <Download size={16} /> Export
+                    </button>
                     <button
                         onClick={() => setUnitSystem(UnitSystem.SI)}
                         className={`px-3 py-1 text-sm font-medium rounded-md transition-all ${unitSystem === UnitSystem.SI ? 'bg-white shadow text-blue-600' : 'text-slate-500'}`}
@@ -147,11 +208,12 @@ const Analyzer: React.FC = () => {
                                                 {Object.values(GasProcess).map(p => <option key={p} value={p}>{p}</option>)}
                                             </select>
                                         </div>
-                                        <InputField label={`Initial Pressure (P1)`} unit="kPa" value={igState.P1} onChange={v => setIgState({ ...igState, P1: Number(v) })} />
-                                        <InputField label={`Initial Volume (V1)`} unit="m³" value={igState.V1} onChange={v => setIgState({ ...igState, V1: Number(v) })} />
-                                        <InputField label={`Initial Temp (T1)`} unit="K" value={igState.T1} onChange={v => setIgState({ ...igState, T1: Number(v) })} />
-                                        <InputField label={igState.process === GasProcess.ISOCHORIC ? 'Final Pressure (P2)' : 'Final Volume (V2)'}
-                                            unit={igState.process === GasProcess.ISOCHORIC ? 'kPa' : 'm³'}
+                                        <UnitAwareInput label={`Initial Pressure (P1)`} unitType="pressure" system={unitSystem} value={igState.P1} onChange={v => setIgState({ ...igState, P1: Number(v) })} />
+                                        <UnitAwareInput label={`Initial Volume (V1)`} unitType="volume" system={unitSystem} value={igState.V1} onChange={v => setIgState({ ...igState, V1: Number(v) })} />
+                                        <UnitAwareInput label={`Initial Temp (T1)`} unitType="temp" system={unitSystem} value={igState.T1} onChange={v => setIgState({ ...igState, T1: Number(v) })} />
+                                        <UnitAwareInput label={igState.process === GasProcess.ISOCHORIC ? 'Final Pressure (P2)' : 'Final Volume (V2)'}
+                                            unitType={igState.process === GasProcess.ISOCHORIC ? 'pressure' : 'volume'}
+                                            system={unitSystem}
                                             value={igState.param}
                                             onChange={v => setIgState({ ...igState, param: Number(v) })}
                                         />
@@ -200,11 +262,11 @@ const Analyzer: React.FC = () => {
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                                     <Card title="Plant Parameters" className="lg:col-span-1">
                                         <div className="space-y-4">
-                                            <InputField label="Turbine Inlet Temp (T3)" unit="°C" value={rankineState.T3} onChange={v => setRankineState({ ...rankineState, T3: Number(v) })} />
-                                            <InputField label="Boiler Pressure (P3)" unit="kPa" value={rankineState.P3} onChange={v => setRankineState({ ...rankineState, P3: Number(v) })} />
-                                            <InputField label="Condenser Pressure (P1)" unit="kPa" value={rankineState.P1} onChange={v => setRankineState({ ...rankineState, P1: Number(v) })} />
-                                            <InputField label="Boiler Heat In (qin)" unit="kJ/kg" value={rankineState.q_boiler} onChange={v => setRankineState({ ...rankineState, q_boiler: Number(v) })} />
-                                            <InputField label="Mass Flow Rate" unit="kg/s" value={rankineState.m_dot} onChange={v => setRankineState({ ...rankineState, m_dot: Number(v) })} />
+                                            <UnitAwareInput label="Turbine Inlet Temp (T3)" unitType="temp_C" system={unitSystem} value={rankineState.T3} onChange={v => setRankineState({ ...rankineState, T3: Number(v) })} />
+                                            <UnitAwareInput label="Boiler Pressure (P3)" unitType="pressure" system={unitSystem} value={rankineState.P3} onChange={v => setRankineState({ ...rankineState, P3: Number(v) })} />
+                                            <UnitAwareInput label="Condenser Pressure (P1)" unitType="pressure" system={unitSystem} value={rankineState.P1} onChange={v => setRankineState({ ...rankineState, P1: Number(v) })} />
+                                            <UnitAwareInput label="Boiler Heat In (qin)" unitType="specific_energy" system={unitSystem} value={rankineState.q_boiler} onChange={v => setRankineState({ ...rankineState, q_boiler: Number(v) })} />
+                                            <UnitAwareInput label="Mass Flow Rate" unitType="mass_flow" system={unitSystem} value={rankineState.m_dot} onChange={v => setRankineState({ ...rankineState, m_dot: Number(v) })} />
                                         </div>
                                     </Card>
 
@@ -258,11 +320,11 @@ const Analyzer: React.FC = () => {
                                                 <InputField label="Cutoff Ratio (rc)" value={dieselState.rc} onChange={v => setDieselState({ ...dieselState, rc: Number(v) })} />
                                             )}
 
-                                            <InputField label="Intake Temp (T1)" unit="K" value={activeCycle === CycleType.OTTO ? ottoState.T1 : dieselState.T1}
+                                            <UnitAwareInput label="Intake Temp (T1)" unitType="temp" system={unitSystem} value={activeCycle === CycleType.OTTO ? ottoState.T1 : dieselState.T1}
                                                 onChange={v => activeCycle === CycleType.OTTO ? setOttoState({ ...ottoState, T1: Number(v) }) : setDieselState({ ...dieselState, T1: Number(v) })} />
 
                                             {activeCycle === CycleType.OTTO && (
-                                                <InputField label="Heat Added (qin)" unit="kJ/kg" value={ottoState.q_in} onChange={v => setOttoState({ ...ottoState, q_in: Number(v) })} />
+                                                <UnitAwareInput label="Heat Added (qin)" unitType="specific_energy" system={unitSystem} value={ottoState.q_in} onChange={v => setOttoState({ ...ottoState, q_in: Number(v) })} />
                                             )}
                                         </div>
                                     </Card>
@@ -317,8 +379,8 @@ const Analyzer: React.FC = () => {
                                     <Card title="Gas Turbine Parameters" className="lg:col-span-1">
                                         <div className="space-y-4">
                                             <InputField label="Pressure Ratio (rp)" value={braytonState.rp} onChange={v => setBraytonState({ ...braytonState, rp: Number(v) })} />
-                                            <InputField label="Inlet Temp (T1)" unit="K" value={braytonState.T1} onChange={v => setBraytonState({ ...braytonState, T1: Number(v) })} />
-                                            <InputField label="Turbine Inlet Temp (T3)" unit="K" value={braytonState.T3} onChange={v => setBraytonState({ ...braytonState, T3: Number(v) })} />
+                                            <UnitAwareInput label="Inlet Temp (T1)" unitType="temp" system={unitSystem} value={braytonState.T1} onChange={v => setBraytonState({ ...braytonState, T1: Number(v) })} />
+                                            <UnitAwareInput label="Turbine Inlet Temp (T3)" unitType="temp" system={unitSystem} value={braytonState.T3} onChange={v => setBraytonState({ ...braytonState, T3: Number(v) })} />
                                         </div>
                                     </Card>
                                     <div className="lg:col-span-2 space-y-6">
@@ -367,18 +429,18 @@ const Analyzer: React.FC = () => {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <Card title="Hot Fluid Stream">
                                     <div className="space-y-4">
-                                        <InputField label="Mass Flow (mh)" unit="kg/s" value={hxState.mh} onChange={v => setHxState({ ...hxState, mh: Number(v) })} />
-                                        <InputField label="Specific Heat (Cph)" unit="kJ/kg.K" value={hxState.Cph} onChange={v => setHxState({ ...hxState, Cph: Number(v) })} />
-                                        <InputField label="Inlet Temp (Th_in)" unit="°C" value={hxState.Th_in} onChange={v => setHxState({ ...hxState, Th_in: Number(v) })} />
-                                        <InputField label="Outlet Temp (Th_out)" unit="°C" value={hxState.Th_out} onChange={v => setHxState({ ...hxState, Th_out: Number(v) })} />
+                                        <UnitAwareInput label="Mass Flow (mh)" unitType="mass_flow" system={unitSystem} value={hxState.mh} onChange={v => setHxState({ ...hxState, mh: Number(v) })} />
+                                        <UnitAwareInput label="Specific Heat (Cph)" unitType="specific_heat" system={unitSystem} value={hxState.Cph} onChange={v => setHxState({ ...hxState, Cph: Number(v) })} />
+                                        <UnitAwareInput label="Inlet Temp (Th_in)" unitType="temp_C" system={unitSystem} value={hxState.Th_in} onChange={v => setHxState({ ...hxState, Th_in: Number(v) })} />
+                                        <UnitAwareInput label="Outlet Temp (Th_out)" unitType="temp_C" system={unitSystem} value={hxState.Th_out} onChange={v => setHxState({ ...hxState, Th_out: Number(v) })} />
                                     </div>
                                 </Card>
                                 <Card title="Cold Fluid Stream & Design">
                                     <div className="space-y-4">
-                                        <InputField label="Mass Flow (mc)" unit="kg/s" value={hxState.mc} onChange={v => setHxState({ ...hxState, mc: Number(v) })} />
-                                        <InputField label="Specific Heat (Cpc)" unit="kJ/kg.K" value={hxState.Cpc} onChange={v => setHxState({ ...hxState, Cpc: Number(v) })} />
-                                        <InputField label="Inlet Temp (Tc_in)" unit="°C" value={hxState.Tc_in} onChange={v => setHxState({ ...hxState, Tc_in: Number(v) })} />
-                                        <InputField label="UA Value" unit="kW/K" value={hxState.UA} onChange={v => setHxState({ ...hxState, UA: Number(v) })} />
+                                        <UnitAwareInput label="Mass Flow (mc)" unitType="mass_flow" system={unitSystem} value={hxState.mc} onChange={v => setHxState({ ...hxState, mc: Number(v) })} />
+                                        <UnitAwareInput label="Specific Heat (Cpc)" unitType="specific_heat" system={unitSystem} value={hxState.Cpc} onChange={v => setHxState({ ...hxState, Cpc: Number(v) })} />
+                                        <UnitAwareInput label="Inlet Temp (Tc_in)" unitType="temp_C" system={unitSystem} value={hxState.Tc_in} onChange={v => setHxState({ ...hxState, Tc_in: Number(v) })} />
+                                        <UnitAwareInput label="UA Value" unitType="conductance" system={unitSystem} value={hxState.UA} onChange={v => setHxState({ ...hxState, UA: Number(v) })} />
                                     </div>
                                 </Card>
                             </div>
@@ -413,9 +475,9 @@ const Analyzer: React.FC = () => {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <Card title="Cycle Parameters">
                                     <div className="space-y-4">
-                                        <InputField label="Evaporator Temp" unit="°C" value={vccState.T_evap} onChange={v => setVccState({ ...vccState, T_evap: Number(v) })} />
-                                        <InputField label="Condenser Temp" unit="°C" value={vccState.T_cond} onChange={v => setVccState({ ...vccState, T_cond: Number(v) })} />
-                                        <InputField label="Refrigerant Flow" unit="kg/s" value={vccState.m_dot} onChange={v => setVccState({ ...vccState, m_dot: Number(v) })} />
+                                        <UnitAwareInput label="Evaporator Temp" unitType="temp_C" system={unitSystem} value={vccState.T_evap} onChange={v => setVccState({ ...vccState, T_evap: Number(v) })} />
+                                        <UnitAwareInput label="Condenser Temp" unitType="temp_C" system={unitSystem} value={vccState.T_cond} onChange={v => setVccState({ ...vccState, T_cond: Number(v) })} />
+                                        <UnitAwareInput label="Refrigerant Flow" unitType="mass_flow" system={unitSystem} value={vccState.m_dot} onChange={v => setVccState({ ...vccState, m_dot: Number(v) })} />
                                     </div>
                                 </Card>
 
@@ -450,8 +512,8 @@ const Analyzer: React.FC = () => {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <Card title="Boundary Conditions">
                                     <div className="space-y-4">
-                                        <InputField label="Inside Temp" unit="°C" value={condState.T_in} onChange={v => setCondState({ ...condState, T_in: Number(v) })} />
-                                        <InputField label="Outside Temp" unit="°C" value={condState.T_out} onChange={v => setCondState({ ...condState, T_out: Number(v) })} />
+                                        <UnitAwareInput label="Inside Temp" unitType="temp_C" system={unitSystem} value={condState.T_in} onChange={v => setCondState({ ...condState, T_in: Number(v) })} />
+                                        <UnitAwareInput label="Outside Temp" unitType="temp_C" system={unitSystem} value={condState.T_out} onChange={v => setCondState({ ...condState, T_out: Number(v) })} />
                                         <div className="pt-4 border-t border-slate-100">
                                             <p className="text-sm font-medium text-slate-700 mb-2">Layers Config</p>
                                             <div className="text-sm text-slate-500 italic">
@@ -488,6 +550,54 @@ const Analyzer: React.FC = () => {
                         </div>
                     )}
 
+                    {/* --- CONVECTION MODULE --- */}
+                    {activeModule === ModuleType.CONVECTION && (
+                        <div className="max-w-4xl mx-auto space-y-6">
+                            <h2 className="text-2xl font-bold text-slate-800">Convection Heat Transfer</h2>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <Card title="Parameters">
+                                    <div className="space-y-4">
+                                        <UnitAwareInput label="Heat Transfer Coeff (h)" unitType="u_value" system={unitSystem} value={convState.h} onChange={v => setConvState({ ...convState, h: Number(v) })} />
+                                        <UnitAwareInput label="Surface Temp (Ts)" unitType="temp_C" system={unitSystem} value={convState.T_surf} onChange={v => setConvState({ ...convState, T_surf: Number(v) })} />
+                                        <UnitAwareInput label="Fluid Temp (T∞)" unitType="temp_C" system={unitSystem} value={convState.T_inf} onChange={v => setConvState({ ...convState, T_inf: Number(v) })} />
+                                        <UnitAwareInput label="Surface Area" unitType="area" system={unitSystem} value={convState.area} onChange={v => setConvState({ ...convState, area: Number(v) })} />
+                                    </div>
+                                </Card>
+                                <Card title="Results" className="bg-blue-50/50 border-blue-100">
+                                    <div>
+                                        <p className="text-xs text-slate-500 uppercase font-semibold">Heat Transfer Rate (Q)</p>
+                                        <p className="text-4xl font-bold text-blue-700">{convResult.Q_dot.toFixed(2)} W</p>
+                                        <p className="text-sm text-slate-400 mt-1">{(convResult.Q_dot / 1000).toFixed(3)} kW</p>
+                                    </div>
+                                </Card>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* --- RADIATION MODULE --- */}
+                    {activeModule === ModuleType.RADIATION && (
+                        <div className="max-w-4xl mx-auto space-y-6">
+                            <h2 className="text-2xl font-bold text-slate-800">Radiation Heat Transfer</h2>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <Card title="Parameters">
+                                    <div className="space-y-4">
+                                        <InputField label="Emissivity (ε)" value={radState.epsilon} onChange={v => setRadState({ ...radState, epsilon: Number(v) })} />
+                                        <UnitAwareInput label="Surface Temp (Ts)" unitType="temp_C" system={unitSystem} value={radState.T_surf} onChange={v => setRadState({ ...radState, T_surf: Number(v) })} />
+                                        <UnitAwareInput label="Surroundings Temp (Tsurr)" unitType="temp_C" system={unitSystem} value={radState.T_surr} onChange={v => setRadState({ ...radState, T_surr: Number(v) })} />
+                                        <UnitAwareInput label="Surface Area" unitType="area" system={unitSystem} value={radState.area} onChange={v => setRadState({ ...radState, area: Number(v) })} />
+                                    </div>
+                                </Card>
+                                <Card title="Results" className="bg-orange-50/50 border-orange-100">
+                                    <div>
+                                        <p className="text-xs text-slate-500 uppercase font-semibold">Heat Transfer Rate (Q)</p>
+                                        <p className="text-4xl font-bold text-orange-700">{radResult.Q_dot.toFixed(2)} W</p>
+                                        <p className="text-sm text-slate-400 mt-1">{(radResult.Q_dot / 1000).toFixed(3)} kW</p>
+                                    </div>
+                                </Card>
+                            </div>
+                        </div>
+                    )}
+
                     {activeModule === ModuleType.VALIDATION && (
                         <div className="max-w-4xl mx-auto space-y-6">
                             <h2 className="text-2xl font-bold text-slate-800">Process Feasibility Validator (2nd Law)</h2>
@@ -495,20 +605,20 @@ const Analyzer: React.FC = () => {
                                 <div className="space-y-6">
                                     <Card title="Initial State (State 1)">
                                         <div className="space-y-4">
-                                            <InputField label="Pressure (P1)" unit="kPa" value={validationState.P1} onChange={v => setValidationState({ ...validationState, P1: Number(v) })} />
-                                            <InputField label="Temperature (T1)" unit="K" value={validationState.T1} onChange={v => setValidationState({ ...validationState, T1: Number(v) })} />
+                                            <UnitAwareInput label="Pressure (P1)" unitType="pressure" system={unitSystem} value={validationState.P1} onChange={v => setValidationState({ ...validationState, P1: Number(v) })} />
+                                            <UnitAwareInput label="Temperature (T1)" unitType="temp" system={unitSystem} value={validationState.T1} onChange={v => setValidationState({ ...validationState, T1: Number(v) })} />
                                         </div>
                                     </Card>
                                     <Card title="Final State (State 2)">
                                         <div className="space-y-4">
-                                            <InputField label="Pressure (P2)" unit="kPa" value={validationState.P2} onChange={v => setValidationState({ ...validationState, P2: Number(v) })} />
-                                            <InputField label="Temperature (T2)" unit="K" value={validationState.T2} onChange={v => setValidationState({ ...validationState, T2: Number(v) })} />
+                                            <UnitAwareInput label="Pressure (P2)" unitType="pressure" system={unitSystem} value={validationState.P2} onChange={v => setValidationState({ ...validationState, P2: Number(v) })} />
+                                            <UnitAwareInput label="Temperature (T2)" unitType="temp" system={unitSystem} value={validationState.T2} onChange={v => setValidationState({ ...validationState, T2: Number(v) })} />
                                         </div>
                                     </Card>
                                     <Card title="Process Interaction">
                                         <div className="space-y-4">
-                                            <InputField label="Heat Transfer to System (Q)" unit="kJ/kg" value={validationState.Q} onChange={v => setValidationState({ ...validationState, Q: Number(v) })} />
-                                            <InputField label="Surroundings Temp (T_surr)" unit="K" value={validationState.T_surr} onChange={v => setValidationState({ ...validationState, T_surr: Number(v) })} />
+                                            <UnitAwareInput label="Heat Transfer to System (Q)" unitType="specific_energy" system={unitSystem} value={validationState.Q} onChange={v => setValidationState({ ...validationState, Q: Number(v) })} />
+                                            <UnitAwareInput label="Surroundings Temp (T_surr)" unitType="temp" system={unitSystem} value={validationState.T_surr} onChange={v => setValidationState({ ...validationState, T_surr: Number(v) })} />
                                         </div>
                                     </Card>
                                 </div>

@@ -1,5 +1,82 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { UnitSystem } from './types';
+import { convertToSI, convertFromSI, UnitType } from './utils/unitConversion';
+
+export const UnitAwareInput: React.FC<{
+  label: string,
+  value: number,
+  onChange: (val: number) => void,
+  unitType: UnitType,
+  system: UnitSystem,
+  precision?: number
+}> = ({ label, value, onChange, unitType, system, precision = 2 }) => {
+  const [displayValue, setDisplayValue] = useState('');
+
+  // Update display value when SI value or system changes
+  useEffect(() => {
+    const val = convertFromSI(value, unitType, system);
+    setDisplayValue(val.toFixed(precision));
+  }, [value, system, unitType, precision]);
+
+  const handleChange = (val: string) => {
+    setDisplayValue(val);
+    const num = parseFloat(val);
+    if (!isNaN(num)) {
+      onChange(convertToSI(num, unitType, system));
+    }
+  };
+
+  const getUnitLabel = () => {
+    if (system === UnitSystem.SI) {
+      switch (unitType) {
+        case 'temp': return 'K';
+        case 'temp_C': return '°C';
+        case 'pressure': return 'kPa';
+        case 'volume': return 'm³';
+        case 'energy': return 'kJ';
+        case 'specific_energy': return 'kJ/kg';
+        case 'power': return 'kW';
+        case 'mass': return 'kg';
+        case 'mass_flow': return 'kg/s';
+        case 'length': return 'm';
+        case 'area': return 'm²';
+        case 'u_value': return 'W/m²K';
+        case 'specific_heat': return 'kJ/kg·K';
+        default: return '';
+      }
+    } else {
+      switch (unitType) {
+        case 'temp': return '°R';
+        case 'temp_C': return '°F';
+        case 'pressure': return 'psi';
+        case 'volume': return 'ft³';
+        case 'energy': return 'BTU';
+        case 'specific_energy': return 'BTU/lb';
+        case 'power': return 'HP';
+        case 'mass': return 'lb';
+        case 'mass_flow': return 'lb/s';
+        case 'length': return 'ft';
+        case 'area': return 'ft²';
+        case 'u_value': return 'BTU/hr·ft²·°F';
+        case 'specific_heat': return 'BTU/lb·°F';
+        default: return '';
+      }
+    }
+  };
+
+
+  return (
+    <InputField
+      label={label}
+      value={displayValue}
+      onChange={handleChange as any} // InputField expects string | number but we handle the event manually in wrapper? Wait, InputField takes value and onChange(val).
+      unit={getUnitLabel()}
+      type="number"
+    />
+  );
+};
+
 
 export const Card: React.FC<{ children: React.ReactNode, title?: string, className?: string }> = ({ children, title, className }) => (
   <div className={`bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden ${className || ''}`}>
@@ -73,8 +150,8 @@ export const TabButton: React.FC<{
   <button
     onClick={onClick}
     className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${active
-        ? 'bg-blue-600 text-white shadow-md'
-        : 'text-slate-600 hover:bg-slate-100'
+      ? 'bg-blue-600 text-white shadow-md'
+      : 'text-slate-600 hover:bg-slate-100'
       }`}
   >
     {children}
