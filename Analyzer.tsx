@@ -34,8 +34,8 @@ const Analyzer: React.FC = () => {
     const dieselResult = useMemo(() => thermoEngine.calculateDieselCycle(dieselState.r, dieselState.rc, dieselState.T1, dieselState.P1), [dieselState]);
 
     // Brayton
-    const [braytonState, setBraytonState] = useState({ rp: 10, T1: 300, T3: 1300 });
-    const braytonResult = useMemo(() => thermoEngine.calculateBraytonCycle(braytonState.rp, braytonState.T1, braytonState.T3), [braytonState]);
+    const [braytonState, setBraytonState] = useState({ rp: 10, T1: 300, P1: 100, T3: 1300 });
+    const braytonResult = useMemo(() => thermoEngine.calculateBraytonCycle(braytonState.rp, braytonState.T1, braytonState.T3, braytonState.P1), [braytonState]);
 
     // Rankine
     const [rankineState, setRankineState] = useState({
@@ -248,420 +248,515 @@ const Analyzer: React.FC = () => {
 
                     {/* --- CYCLES MODULE --- */}
                     {activeModule === ModuleType.CYCLES && (
-                        <div className="max-w-6xl mx-auto space-y-6">
-                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                <h2 className="text-2xl font-bold text-slate-800">Thermodynamic Cycles</h2>
-                                <div className="flex bg-slate-100 p-1 rounded-lg">
-                                    {Object.values(CycleType).map(c => (
-                                        <TabButton key={c} active={activeCycle === c} onClick={() => setActiveCycle(c)}>{c}</TabButton>
-                                    ))}
-                                </div>
+                        <div className="max-w-7xl mx-auto flex flex-col md:flex-row gap-8 items-start">
+                            <div className="w-full md:w-56 shrink-0 bg-white border border-slate-200 rounded-xl p-4 flex flex-col gap-2 shadow-sm order-2 md:order-1 h-fit sticky top-24">
+                                <h2 className="text-xl font-bold text-slate-800 mb-2 px-2">Cycles</h2>
+                                {Object.values(CycleType).map(c => (
+                                    <TabButton
+                                        key={c}
+                                        active={activeCycle === c}
+                                        onClick={() => setActiveCycle(c)}
+                                        className="w-full text-left justify-start py-3"
+                                    >
+                                        {c}
+                                    </TabButton>
+                                ))}
                             </div>
 
-                            {activeCycle === CycleType.RANKINE && (
-                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                                    <Card title="Plant Parameters" className="lg:col-span-1">
-                                        <div className="space-y-4">
-                                            <UnitAwareInput label="Turbine Inlet Temp (T3)" unitType="temp_C" system={unitSystem} value={rankineState.T3} onChange={v => setRankineState({ ...rankineState, T3: Number(v) })} />
-                                            <UnitAwareInput label="Boiler Pressure (P3)" unitType="pressure" system={unitSystem} value={rankineState.P3} onChange={v => setRankineState({ ...rankineState, P3: Number(v) })} />
-                                            <UnitAwareInput label="Condenser Pressure (P1)" unitType="pressure" system={unitSystem} value={rankineState.P1} onChange={v => setRankineState({ ...rankineState, P1: Number(v) })} />
-                                            <UnitAwareInput label="Boiler Heat In (qin)" unitType="specific_energy" system={unitSystem} value={rankineState.q_boiler} onChange={v => setRankineState({ ...rankineState, q_boiler: Number(v) })} />
-                                            <UnitAwareInput label="Mass Flow Rate" unitType="mass_flow" system={unitSystem} value={rankineState.m_dot} onChange={v => setRankineState({ ...rankineState, m_dot: Number(v) })} />
-                                        </div>
-                                    </Card>
-
-                                    <div className="lg:col-span-2 space-y-6">
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-                                                <p className="text-sm text-slate-500">Efficiency</p>
-                                                <p className="text-2xl font-bold text-emerald-600">{rankineResult.efficiency.toFixed(1)}%</p>
-                                            </div>
-                                            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-                                                <p className="text-sm text-slate-500">Net Power</p>
-                                                <p className="text-2xl font-bold text-blue-600">{(rankineResult.power_output / 1000).toFixed(2)} MW</p>
-                                            </div>
-                                            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-                                                <p className="text-sm text-slate-500">Turbine Work</p>
-                                                <p className="text-2xl font-bold text-slate-800">{rankineResult.w_turbine.toFixed(1)} kJ/kg</p>
-                                            </div>
-                                            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-                                                <p className="text-sm text-slate-500">Net Work</p>
-                                                <p className="text-2xl font-bold text-slate-800">{rankineResult.w_net.toFixed(1)} kJ/kg</p>
-                                            </div>
-                                        </div>
-
-                                        <Card title="Rankine Cycle Visualization (T-s Diagram)">
-                                            <div className="h-[300px] w-full">
-                                                <ResponsiveContainer width="100%" height="100%">
-                                                    <AreaChart>
-                                                        <CartesianGrid strokeDasharray="3 3" />
-                                                        <XAxis type="number" dataKey="s" domain={[0, 9]} label={{ value: 'Entropy (s)', position: 'insideBottom', offset: -5 }} />
-                                                        <YAxis type="number" dataKey="T" label={{ value: 'Temp (C)', angle: -90, position: 'insideLeft' }} />
-                                                        <Tooltip />
-                                                        {/* Saturation Dome */}
-                                                        <Area data={rankinePlotData.dome} type="monotone" dataKey="T" stroke="#cbd5e1" fill="#f1f5f9" strokeWidth={2} isAnimationActive={false} />
-                                                        {/* Cycle Process */}
-                                                        <Area data={rankinePlotData.cycle} type="linear" dataKey="T" stroke="#2563eb" fill="#3b82f6" fillOpacity={0.2} strokeWidth={3} />
-                                                    </AreaChart>
-                                                </ResponsiveContainer>
+                            <div className="flex-1 w-full space-y-6 order-1 md:order-2">
+                                {activeCycle === CycleType.RANKINE && (
+                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                        <Card title="Plant Parameters" className="lg:col-span-1">
+                                            <div className="space-y-4">
+                                                <UnitAwareInput label="Turbine Inlet Temp (T3)" unitType="temp_C" system={unitSystem} value={rankineState.T3} onChange={v => setRankineState({ ...rankineState, T3: Number(v) })} />
+                                                <UnitAwareInput label="Boiler Pressure (P3)" unitType="pressure" system={unitSystem} value={rankineState.P3} onChange={v => setRankineState({ ...rankineState, P3: Number(v) })} />
+                                                <UnitAwareInput label="Condenser Pressure (P1)" unitType="pressure" system={unitSystem} value={rankineState.P1} onChange={v => setRankineState({ ...rankineState, P1: Number(v) })} />
+                                                <UnitAwareInput label="Boiler Heat In (qin)" unitType="specific_energy" system={unitSystem} value={rankineState.q_boiler} onChange={v => setRankineState({ ...rankineState, q_boiler: Number(v) })} />
+                                                <UnitAwareInput label="Mass Flow Rate" unitType="mass_flow" system={unitSystem} value={rankineState.m_dot} onChange={v => setRankineState({ ...rankineState, m_dot: Number(v) })} />
                                             </div>
                                         </Card>
+
+                                        <div className="lg:col-span-2 space-y-6">
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                                <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                                                    <p className="text-sm text-slate-500">Efficiency</p>
+                                                    <p className="text-2xl font-bold text-emerald-600">{rankineResult.efficiency.toFixed(1)}%</p>
+                                                </div>
+                                                <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                                                    <p className="text-sm text-slate-500">Net Power</p>
+                                                    <p className="text-2xl font-bold text-blue-600">{(rankineResult.power_output / 1000).toFixed(2)} MW</p>
+                                                </div>
+                                                <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                                                    <p className="text-sm text-slate-500">Turbine Work</p>
+                                                    <p className="text-2xl font-bold text-slate-800">{rankineResult.w_turbine.toFixed(1)} kJ/kg</p>
+                                                </div>
+                                                <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                                                    <p className="text-sm text-slate-500">Net Work</p>
+                                                    <p className="text-2xl font-bold text-slate-800">{rankineResult.w_net.toFixed(1)} kJ/kg</p>
+                                                </div>
+                                            </div>
+
+                                            <Card title="Rankine Cycle Visualization (T-s Diagram)">
+                                                <div className="h-[300px] w-full">
+                                                    <ResponsiveContainer width="100%" height="100%">
+                                                        <AreaChart>
+                                                            <CartesianGrid strokeDasharray="3 3" />
+                                                            <XAxis type="number" dataKey="s" domain={[0, 9]} label={{ value: 'Entropy (s)', position: 'insideBottom', offset: -5 }} />
+                                                            <YAxis type="number" dataKey="T" label={{ value: 'Temp (C)', angle: -90, position: 'insideLeft' }} />
+                                                            <Tooltip />
+                                                            {/* Saturation Dome */}
+                                                            <Area data={rankinePlotData.dome} type="monotone" dataKey="T" stroke="#cbd5e1" fill="#f1f5f9" strokeWidth={2} isAnimationActive={false} />
+                                                            {/* Cycle Process */}
+                                                            <Area data={rankinePlotData.cycle} type="linear" dataKey="T" stroke="#2563eb" fill="#3b82f6" fillOpacity={0.2} strokeWidth={3} />
+                                                        </AreaChart>
+                                                    </ResponsiveContainer>
+                                                </div>
+                                            </Card>
+                                        </div>
                                     </div>
-                                </div>
-                            )}
-                            {(activeCycle === CycleType.OTTO || activeCycle === CycleType.DIESEL) && (
-                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                                    <Card title="Engine Parameters" className="lg:col-span-1">
-                                        <div className="space-y-4">
-                                            <InputField label="Compression Ratio (r)" value={activeCycle === CycleType.OTTO ? ottoState.r : dieselState.r}
-                                                onChange={v => activeCycle === CycleType.OTTO ? setOttoState({ ...ottoState, r: Number(v) }) : setDieselState({ ...dieselState, r: Number(v) })} />
+                                )}
+                                {(activeCycle === CycleType.OTTO || activeCycle === CycleType.DIESEL) && (
+                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                        <Card title="Engine Parameters" className="lg:col-span-1">
+                                            <div className="space-y-4">
+                                                <InputField label="Compression Ratio (r)" value={activeCycle === CycleType.OTTO ? ottoState.r : dieselState.r}
+                                                    onChange={v => activeCycle === CycleType.OTTO ? setOttoState({ ...ottoState, r: Number(v) }) : setDieselState({ ...dieselState, r: Number(v) })} />
 
-                                            {activeCycle === CycleType.DIESEL && (
-                                                <InputField label="Cutoff Ratio (rc)" value={dieselState.rc} onChange={v => setDieselState({ ...dieselState, rc: Number(v) })} />
-                                            )}
+                                                {activeCycle === CycleType.DIESEL && (
+                                                    <InputField label="Cutoff Ratio (rc)" value={dieselState.rc} onChange={v => setDieselState({ ...dieselState, rc: Number(v) })} />
+                                                )}
 
-                                            <UnitAwareInput label="Intake Temp (T1)" unitType="temp" system={unitSystem} value={activeCycle === CycleType.OTTO ? ottoState.T1 : dieselState.T1}
-                                                onChange={v => activeCycle === CycleType.OTTO ? setOttoState({ ...ottoState, T1: Number(v) }) : setDieselState({ ...dieselState, T1: Number(v) })} />
+                                                <UnitAwareInput label="Intake Temp (T1)" unitType="temp" system={unitSystem} value={activeCycle === CycleType.OTTO ? ottoState.T1 : dieselState.T1}
+                                                    onChange={v => activeCycle === CycleType.OTTO ? setOttoState({ ...ottoState, T1: Number(v) }) : setDieselState({ ...dieselState, T1: Number(v) })} />
 
-                                            {activeCycle === CycleType.OTTO && (
-                                                <UnitAwareInput label="Heat Added (qin)" unitType="specific_energy" system={unitSystem} value={ottoState.q_in} onChange={v => setOttoState({ ...ottoState, q_in: Number(v) })} />
-                                            )}
-                                        </div>
-                                    </Card>
-                                    <div className="lg:col-span-2 space-y-6">
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-                                                <p className="text-sm text-slate-500">Thermal Efficiency</p>
-                                                <p className="text-2xl font-bold text-emerald-600">
-                                                    {activeCycle === CycleType.OTTO ? ottoResult.efficiency.toFixed(1) : dieselResult.efficiency.toFixed(1)}%
-                                                </p>
-                                            </div>
-                                            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-                                                <p className="text-sm text-slate-500">Net Work Output</p>
-                                                <p className="text-2xl font-bold text-blue-600">
-                                                    {activeCycle === CycleType.OTTO ? ottoResult.w_net.toFixed(1) : dieselResult.w_net.toFixed(1)} kJ/kg
-                                                </p>
-                                            </div>
-                                            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-                                                <p className="text-sm text-slate-500">MEP</p>
-                                                <p className="text-2xl font-bold text-slate-800">
-                                                    {activeCycle === CycleType.OTTO ? ottoResult.MEP.toFixed(1) : dieselResult.MEP.toFixed(1)} kPa
-                                                </p>
-                                            </div>
-                                            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-                                                <p className="text-sm text-slate-500">Max Temp (T3)</p>
-                                                <p className="text-2xl font-bold text-slate-800">
-                                                    {activeCycle === CycleType.OTTO ? ottoResult.T3.toFixed(0) : dieselResult.T3.toFixed(0)} K
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        <Card title="PV Diagram (Idealized)">
-                                            <div className="h-[300px] w-full">
-                                                <ResponsiveContainer width="100%" height="100%">
-                                                    <AreaChart data={ottoPlotData}>
-                                                        <CartesianGrid strokeDasharray="3 3" />
-                                                        <XAxis dataKey="v" type="number" domain={['auto', 'auto']} label={{ value: 'Volume', position: 'insideBottomRight', offset: -5 }} />
-                                                        <YAxis dataKey="p" label={{ value: 'Pressure', angle: -90, position: 'insideLeft' }} />
-                                                        <Tooltip formatter={(val: number) => val.toFixed(1)} />
-                                                        <Area type="monotone" dataKey="p" stroke="#8884d8" fill="#8884d8" fillOpacity={0.3} />
-                                                    </AreaChart>
-                                                </ResponsiveContainer>
-                                            </div>
-                                            <p className="text-xs text-slate-400 mt-2 text-center">* Simplified Ideal Curve</p>
-                                        </Card>
-                                    </div>
-                                </div>
-                            )}
-
-                            {activeCycle === CycleType.BRAYTON && (
-                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                                    <Card title="Gas Turbine Parameters" className="lg:col-span-1">
-                                        <div className="space-y-4">
-                                            <InputField label="Pressure Ratio (rp)" value={braytonState.rp} onChange={v => setBraytonState({ ...braytonState, rp: Number(v) })} />
-                                            <UnitAwareInput label="Inlet Temp (T1)" unitType="temp" system={unitSystem} value={braytonState.T1} onChange={v => setBraytonState({ ...braytonState, T1: Number(v) })} />
-                                            <UnitAwareInput label="Turbine Inlet Temp (T3)" unitType="temp" system={unitSystem} value={braytonState.T3} onChange={v => setBraytonState({ ...braytonState, T3: Number(v) })} />
-                                        </div>
-                                    </Card>
-                                    <div className="lg:col-span-2 space-y-6">
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-                                                <p className="text-sm text-slate-500">Thermal Efficiency</p>
-                                                <p className="text-2xl font-bold text-emerald-600">{braytonResult.efficiency.toFixed(1)}%</p>
-                                            </div>
-                                            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-                                                <p className="text-sm text-slate-500">Net Work</p>
-                                                <p className="text-2xl font-bold text-blue-600">{braytonResult.w_net.toFixed(1)} kJ/kg</p>
-                                            </div>
-                                            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-                                                <p className="text-sm text-slate-500">Back Work Ratio</p>
-                                                <p className="text-2xl font-bold text-slate-800">{braytonResult.bwr.toFixed(3)}</p>
-                                            </div>
-                                            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-                                                <p className="text-sm text-slate-500">Turbine Out (T4)</p>
-                                                <p className="text-2xl font-bold text-slate-800">{braytonResult.T4.toFixed(0)} K</p>
-                                            </div>
-                                        </div>
-
-                                        <Card title="Brayton Cycle Visualization (P-v)">
-                                            <div className="h-[300px] w-full">
-                                                <ResponsiveContainer width="100%" height="100%">
-                                                    <AreaChart data={braytonPlotData}>
-                                                        <CartesianGrid strokeDasharray="3 3" />
-                                                        <XAxis dataKey="v" type="number" label={{ value: 'Volume', position: 'insideBottomRight', offset: -5 }} />
-                                                        <YAxis dataKey="p" label={{ value: 'Pressure', angle: -90, position: 'insideLeft' }} />
-                                                        <Tooltip formatter={(val: number) => val.toFixed(1)} />
-                                                        <Area type="monotone" dataKey="p" stroke="#f59e0b" fill="#fcd34d" fillOpacity={0.3} />
-                                                    </AreaChart>
-                                                </ResponsiveContainer>
+                                                {activeCycle === CycleType.OTTO && (
+                                                    <UnitAwareInput label="Heat Added (qin)" unitType="specific_energy" system={unitSystem} value={ottoState.q_in} onChange={v => setOttoState({ ...ottoState, q_in: Number(v) })} />
+                                                )}
                                             </div>
                                         </Card>
+                                        <div className="lg:col-span-2 space-y-6">
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                                <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                                                    <p className="text-sm text-slate-500">Thermal Efficiency</p>
+                                                    <p className="text-2xl font-bold text-emerald-600">
+                                                        {activeCycle === CycleType.OTTO ? ottoResult.efficiency.toFixed(1) : dieselResult.efficiency.toFixed(1)}%
+                                                    </p>
+                                                </div>
+                                                <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                                                    <p className="text-sm text-slate-500">Net Work Output</p>
+                                                    <p className="text-2xl font-bold text-blue-600">
+                                                        {activeCycle === CycleType.OTTO ? ottoResult.w_net.toFixed(1) : dieselResult.w_net.toFixed(1)} kJ/kg
+                                                    </p>
+                                                </div>
+                                                <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                                                    <p className="text-sm text-slate-500">MEP</p>
+                                                    <p className="text-2xl font-bold text-slate-800">
+                                                        {activeCycle === CycleType.OTTO ? ottoResult.MEP.toFixed(1) : dieselResult.MEP.toFixed(1)} kPa
+                                                    </p>
+                                                </div>
+                                                <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                                                    <p className="text-sm text-slate-500">Max Temp (T3)</p>
+                                                    <p className="text-2xl font-bold text-slate-800">
+                                                        {activeCycle === CycleType.OTTO ? ottoResult.T3.toFixed(0) : dieselResult.T3.toFixed(0)} K
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <Card title="PV Diagram (Idealized)">
+                                                <div className="h-[300px] w-full">
+                                                    <ResponsiveContainer width="100%" height="100%">
+                                                        <AreaChart data={ottoPlotData}>
+                                                            <CartesianGrid strokeDasharray="3 3" />
+                                                            <XAxis dataKey="v" type="number" domain={['auto', 'auto']} label={{ value: 'Volume', position: 'insideBottomRight', offset: -5 }} />
+                                                            <YAxis dataKey="p" label={{ value: 'Pressure', angle: -90, position: 'insideLeft' }} />
+                                                            <Tooltip formatter={(val: number) => val.toFixed(1)} />
+                                                            <Area type="monotone" dataKey="p" stroke="#8884d8" fill="#8884d8" fillOpacity={0.3} />
+                                                        </AreaChart>
+                                                    </ResponsiveContainer>
+                                                </div>
+                                                <p className="text-xs text-slate-400 mt-2 text-center">* Simplified Ideal Curve</p>
+                                            </Card>
+                                        </div>
                                     </div>
-                                </div>
-                            )}
+                                )}
+
+                                {activeCycle === CycleType.BRAYTON && (
+                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                        <Card title="Gas Turbine Parameters" className="lg:col-span-1">
+                                            <div className="space-y-4">
+                                                <InputField label="Pressure Ratio (rp)" value={braytonState.rp} onChange={v => setBraytonState({ ...braytonState, rp: Number(v) })} />
+                                                <UnitAwareInput label="Inlet Pressure (P1)" unitType="pressure" system={unitSystem} value={braytonState.P1} onChange={v => setBraytonState({ ...braytonState, P1: Number(v) })} />
+                                                <UnitAwareInput label="Inlet Temp (T1)" unitType="temp" system={unitSystem} value={braytonState.T1} onChange={v => setBraytonState({ ...braytonState, T1: Number(v) })} />
+                                                <UnitAwareInput label="Turbine Inlet Temp (T3)" unitType="temp" system={unitSystem} value={braytonState.T3} onChange={v => setBraytonState({ ...braytonState, T3: Number(v) })} />
+                                            </div>
+                                        </Card>
+                                        <div className="lg:col-span-2 space-y-6">
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                                <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                                                    <p className="text-sm text-slate-500">Thermal Efficiency</p>
+                                                    <p className="text-2xl font-bold text-emerald-600">{braytonResult.efficiency.toFixed(1)}%</p>
+                                                </div>
+                                                <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                                                    <p className="text-sm text-slate-500">Net Work</p>
+                                                    <p className="text-2xl font-bold text-blue-600">{braytonResult.w_net.toFixed(1)} kJ/kg</p>
+                                                </div>
+                                                <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                                                    <p className="text-sm text-slate-500">Back Work Ratio</p>
+                                                    <p className="text-2xl font-bold text-slate-800">{braytonResult.bwr.toFixed(3)}</p>
+                                                </div>
+                                                <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                                                    <p className="text-sm text-slate-500">Turbine Out (T4)</p>
+                                                    <p className="text-2xl font-bold text-slate-800">{braytonResult.T4.toFixed(0)} K</p>
+                                                </div>
+                                            </div>
+
+                                            <Card title="Brayton Cycle Visualization (P-v)">
+                                                <div className="h-[300px] w-full">
+                                                    <ResponsiveContainer width="100%" height="100%">
+                                                        <AreaChart data={braytonPlotData}>
+                                                            <CartesianGrid strokeDasharray="3 3" />
+                                                            <XAxis dataKey="v" type="number" label={{ value: 'Volume', position: 'insideBottomRight', offset: -5 }} />
+                                                            <YAxis dataKey="p" label={{ value: 'Pressure', angle: -90, position: 'insideLeft' }} />
+                                                            <Tooltip formatter={(val: number) => val.toFixed(1)} />
+                                                            <Area type="monotone" dataKey="p" stroke="#f59e0b" fill="#fcd34d" fillOpacity={0.3} />
+                                                        </AreaChart>
+                                                    </ResponsiveContainer>
+                                                </div>
+                                            </Card>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
+
+
+                    {/* --- CYCLE STEP-BY-STEP RESULTS --- */}
+                    {
+                        activeModule === ModuleType.CYCLES && (
+                            <div className="max-w-6xl mx-auto mt-6">
+                                <Card title="Step-by-Step Process Analysis">
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-center">
+                                        {/* Header */}
+                                        <div className="font-bold text-slate-500">State</div>
+                                        <div className="font-bold text-slate-500">Process</div>
+                                        <div className="font-bold text-slate-500">Pressure (kPa)</div>
+                                        <div className="font-bold text-slate-500">Temperature (K/C)</div>
+
+                                        {/* Rows */}
+                                        {activeCycle === CycleType.RANKINE ? (
+                                            <>
+                                                {[1, 2, 3, 4].map(s => {
+                                                    const state = (rankineResult as any).states[s];
+                                                    const processNames = ["Condenser Outlet", "Pump Outlet", "Boiler Outlet", "Turbine Outlet"];
+                                                    return (
+                                                        <React.Fragment key={s}>
+                                                            <div className="p-2 bg-slate-50 rounded font-bold text-slate-700">{s}</div>
+                                                            <div className="p-2 text-slate-600 text-sm flex flex-col justify-center">
+                                                                <span>{processNames[s - 1]}</span>
+                                                                <span className="text-xs text-slate-400">{state.phase}</span>
+                                                            </div>
+                                                            <div className="p-2 font-mono text-blue-600">{state.P.toFixed(1)}</div>
+                                                            <div className="p-2 font-mono text-red-600">{state.T.toFixed(1)} °C</div>
+                                                        </React.Fragment>
+                                                    );
+                                                })}
+                                            </>
+                                        ) : (
+                                            <>
+                                                {/* Generic Logic for Otto/Diesel/Brayton */}
+                                                {[1, 2, 3, 4].map(s => {
+                                                    let T, P;
+                                                    // Inputs
+                                                    if (s === 1) {
+                                                        if (activeCycle === CycleType.OTTO) { T = ottoState.T1; P = ottoState.P1; }
+                                                        else if (activeCycle === CycleType.DIESEL) { T = dieselState.T1; P = dieselState.P1; }
+                                                        else if (activeCycle === CycleType.BRAYTON) { T = braytonState.T1; P = braytonState.P1; }
+                                                    } else {
+                                                        const res: any = activeCycle === CycleType.OTTO ? ottoResult :
+                                                            activeCycle === CycleType.DIESEL ? dieselResult : braytonResult;
+                                                        T = res[`T${s}`];
+                                                        P = res[`P${s}`];
+                                                    }
+
+                                                    let processName = "";
+                                                    if (activeCycle === CycleType.OTTO) {
+                                                        processName = s === 1 ? "Intake / Compression Start" : s === 2 ? "Compression End / Ignition" : s === 3 ? "Combustion End / Expansion Start" : "Expansion End / Exhaust";
+                                                    } else if (activeCycle === CycleType.DIESEL) {
+                                                        processName = s === 1 ? "Intake" : s === 2 ? "Compression End" : s === 3 ? "Fuel Injection End" : "Expansion End";
+                                                    } else if (activeCycle === CycleType.BRAYTON) {
+                                                        processName = s === 1 ? "Compressor In" : s === 2 ? "Combustor In" : s === 3 ? "Turbine In" : "Turbine Out";
+                                                    }
+
+                                                    return (
+                                                        <React.Fragment key={s}>
+                                                            <div className="p-2 bg-slate-50 rounded font-bold text-slate-700">{s}</div>
+                                                            <div className="p-2 text-slate-600 text-sm flex items-center justify-center">{processName}</div>
+                                                            <div className="p-2 font-mono text-blue-600">{P ? P.toFixed(1) : '-'}</div>
+                                                            <div className="p-2 font-mono text-red-600">{T ? T.toFixed(1) : '-'} K</div>
+                                                        </React.Fragment>
+                                                    );
+                                                })}
+                                            </>
+                                        )}
+                                    </div>
+                                </Card>
+                            </div>
+                        )
+                    }
 
                     {/* --- HEAT EXCHANGER MODULE --- */}
-                    {activeModule === ModuleType.HEAT_EXCHANGER && (
-                        <div className="max-w-5xl mx-auto space-y-6">
-                            <h2 className="text-2xl font-bold text-slate-800">Heat Exchanger Analysis</h2>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <Card title="Hot Fluid Stream">
-                                    <div className="space-y-4">
-                                        <UnitAwareInput label="Mass Flow (mh)" unitType="mass_flow" system={unitSystem} value={hxState.mh} onChange={v => setHxState({ ...hxState, mh: Number(v) })} />
-                                        <UnitAwareInput label="Specific Heat (Cph)" unitType="specific_heat" system={unitSystem} value={hxState.Cph} onChange={v => setHxState({ ...hxState, Cph: Number(v) })} />
-                                        <UnitAwareInput label="Inlet Temp (Th_in)" unitType="temp_C" system={unitSystem} value={hxState.Th_in} onChange={v => setHxState({ ...hxState, Th_in: Number(v) })} />
-                                        <UnitAwareInput label="Outlet Temp (Th_out)" unitType="temp_C" system={unitSystem} value={hxState.Th_out} onChange={v => setHxState({ ...hxState, Th_out: Number(v) })} />
-                                    </div>
-                                </Card>
-                                <Card title="Cold Fluid Stream & Design">
-                                    <div className="space-y-4">
-                                        <UnitAwareInput label="Mass Flow (mc)" unitType="mass_flow" system={unitSystem} value={hxState.mc} onChange={v => setHxState({ ...hxState, mc: Number(v) })} />
-                                        <UnitAwareInput label="Specific Heat (Cpc)" unitType="specific_heat" system={unitSystem} value={hxState.Cpc} onChange={v => setHxState({ ...hxState, Cpc: Number(v) })} />
-                                        <UnitAwareInput label="Inlet Temp (Tc_in)" unitType="temp_C" system={unitSystem} value={hxState.Tc_in} onChange={v => setHxState({ ...hxState, Tc_in: Number(v) })} />
-                                        <UnitAwareInput label="UA Value" unitType="conductance" system={unitSystem} value={hxState.UA} onChange={v => setHxState({ ...hxState, UA: Number(v) })} />
+                    {
+                        activeModule === ModuleType.HEAT_EXCHANGER && (
+                            <div className="max-w-5xl mx-auto space-y-6">
+                                <h2 className="text-2xl font-bold text-slate-800">Heat Exchanger Analysis</h2>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <Card title="Hot Fluid Stream">
+                                        <div className="space-y-4">
+                                            <UnitAwareInput label="Mass Flow (mh)" unitType="mass_flow" system={unitSystem} value={hxState.mh} onChange={v => setHxState({ ...hxState, mh: Number(v) })} />
+                                            <UnitAwareInput label="Specific Heat (Cph)" unitType="specific_heat" system={unitSystem} value={hxState.Cph} onChange={v => setHxState({ ...hxState, Cph: Number(v) })} />
+                                            <UnitAwareInput label="Inlet Temp (Th_in)" unitType="temp_C" system={unitSystem} value={hxState.Th_in} onChange={v => setHxState({ ...hxState, Th_in: Number(v) })} />
+                                            <UnitAwareInput label="Outlet Temp (Th_out)" unitType="temp_C" system={unitSystem} value={hxState.Th_out} onChange={v => setHxState({ ...hxState, Th_out: Number(v) })} />
+                                        </div>
+                                    </Card>
+                                    <Card title="Cold Fluid Stream & Design">
+                                        <div className="space-y-4">
+                                            <UnitAwareInput label="Mass Flow (mc)" unitType="mass_flow" system={unitSystem} value={hxState.mc} onChange={v => setHxState({ ...hxState, mc: Number(v) })} />
+                                            <UnitAwareInput label="Specific Heat (Cpc)" unitType="specific_heat" system={unitSystem} value={hxState.Cpc} onChange={v => setHxState({ ...hxState, Cpc: Number(v) })} />
+                                            <UnitAwareInput label="Inlet Temp (Tc_in)" unitType="temp_C" system={unitSystem} value={hxState.Tc_in} onChange={v => setHxState({ ...hxState, Tc_in: Number(v) })} />
+                                            <UnitAwareInput label="UA Value" unitType="conductance" system={unitSystem} value={hxState.UA} onChange={v => setHxState({ ...hxState, UA: Number(v) })} />
+                                        </div>
+                                    </Card>
+                                </div>
+
+                                <Card title="Performance Indices" className="bg-blue-50/50 border-blue-100">
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                                        <div>
+                                            <p className="text-xs font-semibold text-slate-500 uppercase">Effectiveness (ε)</p>
+                                            <p className="text-3xl font-bold text-blue-700">{hxResult.epsilon.toFixed(1)}%</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-semibold text-slate-500 uppercase">LMTD</p>
+                                            <p className="text-3xl font-bold text-slate-700">{hxResult.LMTD.toFixed(1)} °C</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-semibold text-slate-500 uppercase">Heat Transfer (Q)</p>
+                                            <p className="text-3xl font-bold text-orange-600">{hxResult.Q.toFixed(1)} kW</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-semibold text-slate-500 uppercase">NTU</p>
+                                            <p className="text-3xl font-bold text-slate-700">{hxResult.NTU.toFixed(2)}</p>
+                                        </div>
                                     </div>
                                 </Card>
                             </div>
-
-                            <Card title="Performance Indices" className="bg-blue-50/50 border-blue-100">
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                                    <div>
-                                        <p className="text-xs font-semibold text-slate-500 uppercase">Effectiveness (ε)</p>
-                                        <p className="text-3xl font-bold text-blue-700">{hxResult.epsilon.toFixed(1)}%</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-semibold text-slate-500 uppercase">LMTD</p>
-                                        <p className="text-3xl font-bold text-slate-700">{hxResult.LMTD.toFixed(1)} °C</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-semibold text-slate-500 uppercase">Heat Transfer (Q)</p>
-                                        <p className="text-3xl font-bold text-orange-600">{hxResult.Q.toFixed(1)} kW</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-semibold text-slate-500 uppercase">NTU</p>
-                                        <p className="text-3xl font-bold text-slate-700">{hxResult.NTU.toFixed(2)}</p>
-                                    </div>
-                                </div>
-                            </Card>
-                        </div>
-                    )}
+                        )
+                    }
 
                     {/* --- REFRIGERATION MODULE --- */}
-                    {activeModule === ModuleType.REFRIGERATION && (
-                        <div className="max-w-4xl mx-auto space-y-6">
-                            <h2 className="text-2xl font-bold text-slate-800">Vapor Compression Cycle</h2>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <Card title="Cycle Parameters">
-                                    <div className="space-y-4">
-                                        <UnitAwareInput label="Evaporator Temp" unitType="temp_C" system={unitSystem} value={vccState.T_evap} onChange={v => setVccState({ ...vccState, T_evap: Number(v) })} />
-                                        <UnitAwareInput label="Condenser Temp" unitType="temp_C" system={unitSystem} value={vccState.T_cond} onChange={v => setVccState({ ...vccState, T_cond: Number(v) })} />
-                                        <UnitAwareInput label="Refrigerant Flow" unitType="mass_flow" system={unitSystem} value={vccState.m_dot} onChange={v => setVccState({ ...vccState, m_dot: Number(v) })} />
-                                    </div>
-                                </Card>
+                    {
+                        activeModule === ModuleType.REFRIGERATION && (
+                            <div className="max-w-4xl mx-auto space-y-6">
+                                <h2 className="text-2xl font-bold text-slate-800">Vapor Compression Cycle</h2>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <Card title="Cycle Parameters">
+                                        <div className="space-y-4">
+                                            <UnitAwareInput label="Evaporator Temp" unitType="temp_C" system={unitSystem} value={vccState.T_evap} onChange={v => setVccState({ ...vccState, T_evap: Number(v) })} />
+                                            <UnitAwareInput label="Condenser Temp" unitType="temp_C" system={unitSystem} value={vccState.T_cond} onChange={v => setVccState({ ...vccState, T_cond: Number(v) })} />
+                                            <UnitAwareInput label="Refrigerant Flow" unitType="mass_flow" system={unitSystem} value={vccState.m_dot} onChange={v => setVccState({ ...vccState, m_dot: Number(v) })} />
+                                        </div>
+                                    </Card>
 
-                                <div className="space-y-4">
-                                    <Card className="bg-emerald-50 border-emerald-100">
-                                        <p className="text-sm font-semibold text-emerald-800">Coefficient of Performance (COP)</p>
-                                        <p className="text-4xl font-bold text-emerald-600 mt-2">{vccResult.COP.toFixed(2)}</p>
-                                    </Card>
-                                    <Card>
-                                        <div className="flex justify-between items-center border-b border-slate-100 pb-2 mb-2">
-                                            <span className="text-slate-600">Cooling Capacity</span>
-                                            <span className="font-bold text-slate-800">{vccResult.capacity.toFixed(2)} kW</span>
-                                        </div>
-                                        <div className="flex justify-between items-center border-b border-slate-100 pb-2 mb-2">
-                                            <span className="text-slate-600">Compressor Work</span>
-                                            <span className="font-bold text-slate-800">{vccResult.w_c.toFixed(2)} kJ/kg</span>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-slate-600">Heat Rejected</span>
-                                            <span className="font-bold text-slate-800">{vccResult.q_c.toFixed(2)} kJ/kg</span>
-                                        </div>
-                                    </Card>
+                                    <div className="space-y-4">
+                                        <Card className="bg-emerald-50 border-emerald-100">
+                                            <p className="text-sm font-semibold text-emerald-800">Coefficient of Performance (COP)</p>
+                                            <p className="text-4xl font-bold text-emerald-600 mt-2">{vccResult.COP.toFixed(2)}</p>
+                                        </Card>
+                                        <Card>
+                                            <div className="flex justify-between items-center border-b border-slate-100 pb-2 mb-2">
+                                                <span className="text-slate-600">Cooling Capacity</span>
+                                                <span className="font-bold text-slate-800">{vccResult.capacity.toFixed(2)} kW</span>
+                                            </div>
+                                            <div className="flex justify-between items-center border-b border-slate-100 pb-2 mb-2">
+                                                <span className="text-slate-600">Compressor Work</span>
+                                                <span className="font-bold text-slate-800">{vccResult.w_c.toFixed(2)} kJ/kg</span>
+                                            </div>
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-slate-600">Heat Rejected</span>
+                                                <span className="font-bold text-slate-800">{vccResult.q_c.toFixed(2)} kJ/kg</span>
+                                            </div>
+                                        </Card>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    )}
+                        )
+                    }
 
                     {/* --- CONDUCTION MODULE --- */}
-                    {activeModule === ModuleType.CONDUCTION && (
-                        <div className="max-w-4xl mx-auto space-y-6">
-                            <h2 className="text-2xl font-bold text-slate-800">Heat Conduction (Composite Wall)</h2>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <Card title="Boundary Conditions">
-                                    <div className="space-y-4">
-                                        <UnitAwareInput label="Inside Temp" unitType="temp_C" system={unitSystem} value={condState.T_in} onChange={v => setCondState({ ...condState, T_in: Number(v) })} />
-                                        <UnitAwareInput label="Outside Temp" unitType="temp_C" system={unitSystem} value={condState.T_out} onChange={v => setCondState({ ...condState, T_out: Number(v) })} />
-                                        <div className="pt-4 border-t border-slate-100">
-                                            <p className="text-sm font-medium text-slate-700 mb-2">Layers Config</p>
-                                            <div className="text-sm text-slate-500 italic">
-                                                Layer editing not fully implemented in UI demo.
-                                                <br />Currently simulating: Brick (20cm) + Insulation (5cm).
+                    {
+                        activeModule === ModuleType.CONDUCTION && (
+                            <div className="max-w-4xl mx-auto space-y-6">
+                                <h2 className="text-2xl font-bold text-slate-800">Heat Conduction (Composite Wall)</h2>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <Card title="Boundary Conditions">
+                                        <div className="space-y-4">
+                                            <UnitAwareInput label="Inside Temp" unitType="temp_C" system={unitSystem} value={condState.T_in} onChange={v => setCondState({ ...condState, T_in: Number(v) })} />
+                                            <UnitAwareInput label="Outside Temp" unitType="temp_C" system={unitSystem} value={condState.T_out} onChange={v => setCondState({ ...condState, T_out: Number(v) })} />
+                                            <div className="pt-4 border-t border-slate-100">
+                                                <p className="text-sm font-medium text-slate-700 mb-2">Layers Config</p>
+                                                <div className="text-sm text-slate-500 italic">
+                                                    Layer editing not fully implemented in UI demo.
+                                                    <br />Currently simulating: Brick (20cm) + Insulation (5cm).
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                </Card>
-                                <Card title="Results" className="bg-orange-50/50 border-orange-100">
-                                    <div className="space-y-4">
-                                        <div>
-                                            <p className="text-xs text-slate-500 uppercase font-semibold">Heat Flux (Q/A)</p>
-                                            <p className="text-3xl font-bold text-orange-700">{condResult.Q_dot.toFixed(2)} W/m²</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs text-slate-500 uppercase font-semibold">Total Resistance (R)</p>
-                                            <p className="text-2xl font-bold text-slate-700">{condResult.R_total.toFixed(4)} K/W</p>
-                                        </div>
-                                        <div className="pt-4 border-t border-slate-100">
-                                            <p className="text-xs text-slate-500 uppercase font-semibold mb-2">Temp Distribution</p>
-                                            <div className="flex gap-2 overflow-x-auto pb-2">
-                                                {condResult.temperatures.map((t, i) => (
-                                                    <div key={i} className="bg-white px-3 py-2 rounded border border-slate-200 min-w-[80px] text-center">
-                                                        <p className="text-[10px] text-slate-400">Node {i}</p>
-                                                        <p className="font-bold text-slate-800">{t.toFixed(1)}°C</p>
-                                                    </div>
-                                                ))}
+                                    </Card>
+                                    <Card title="Results" className="bg-orange-50/50 border-orange-100">
+                                        <div className="space-y-4">
+                                            <div>
+                                                <p className="text-xs text-slate-500 uppercase font-semibold">Heat Flux (Q/A)</p>
+                                                <p className="text-3xl font-bold text-orange-700">{condResult.Q_dot.toFixed(2)} W/m²</p>
                                             </div>
-                                        </div>
-                                    </div>
-                                </Card>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* --- CONVECTION MODULE --- */}
-                    {activeModule === ModuleType.CONVECTION && (
-                        <div className="max-w-4xl mx-auto space-y-6">
-                            <h2 className="text-2xl font-bold text-slate-800">Convection Heat Transfer</h2>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <Card title="Parameters">
-                                    <div className="space-y-4">
-                                        <UnitAwareInput label="Heat Transfer Coeff (h)" unitType="u_value" system={unitSystem} value={convState.h} onChange={v => setConvState({ ...convState, h: Number(v) })} />
-                                        <UnitAwareInput label="Surface Temp (Ts)" unitType="temp_C" system={unitSystem} value={convState.T_surf} onChange={v => setConvState({ ...convState, T_surf: Number(v) })} />
-                                        <UnitAwareInput label="Fluid Temp (T∞)" unitType="temp_C" system={unitSystem} value={convState.T_inf} onChange={v => setConvState({ ...convState, T_inf: Number(v) })} />
-                                        <UnitAwareInput label="Surface Area" unitType="area" system={unitSystem} value={convState.area} onChange={v => setConvState({ ...convState, area: Number(v) })} />
-                                    </div>
-                                </Card>
-                                <Card title="Results" className="bg-blue-50/50 border-blue-100">
-                                    <div>
-                                        <p className="text-xs text-slate-500 uppercase font-semibold">Heat Transfer Rate (Q)</p>
-                                        <p className="text-4xl font-bold text-blue-700">{convResult.Q_dot.toFixed(2)} W</p>
-                                        <p className="text-sm text-slate-400 mt-1">{(convResult.Q_dot / 1000).toFixed(3)} kW</p>
-                                    </div>
-                                </Card>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* --- RADIATION MODULE --- */}
-                    {activeModule === ModuleType.RADIATION && (
-                        <div className="max-w-4xl mx-auto space-y-6">
-                            <h2 className="text-2xl font-bold text-slate-800">Radiation Heat Transfer</h2>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <Card title="Parameters">
-                                    <div className="space-y-4">
-                                        <InputField label="Emissivity (ε)" value={radState.epsilon} onChange={v => setRadState({ ...radState, epsilon: Number(v) })} />
-                                        <UnitAwareInput label="Surface Temp (Ts)" unitType="temp_C" system={unitSystem} value={radState.T_surf} onChange={v => setRadState({ ...radState, T_surf: Number(v) })} />
-                                        <UnitAwareInput label="Surroundings Temp (Tsurr)" unitType="temp_C" system={unitSystem} value={radState.T_surr} onChange={v => setRadState({ ...radState, T_surr: Number(v) })} />
-                                        <UnitAwareInput label="Surface Area" unitType="area" system={unitSystem} value={radState.area} onChange={v => setRadState({ ...radState, area: Number(v) })} />
-                                    </div>
-                                </Card>
-                                <Card title="Results" className="bg-orange-50/50 border-orange-100">
-                                    <div>
-                                        <p className="text-xs text-slate-500 uppercase font-semibold">Heat Transfer Rate (Q)</p>
-                                        <p className="text-4xl font-bold text-orange-700">{radResult.Q_dot.toFixed(2)} W</p>
-                                        <p className="text-sm text-slate-400 mt-1">{(radResult.Q_dot / 1000).toFixed(3)} kW</p>
-                                    </div>
-                                </Card>
-                            </div>
-                        </div>
-                    )}
-
-                    {activeModule === ModuleType.VALIDATION && (
-                        <div className="max-w-4xl mx-auto space-y-6">
-                            <h2 className="text-2xl font-bold text-slate-800">Process Feasibility Validator (2nd Law)</h2>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="space-y-6">
-                                    <Card title="Initial State (State 1)">
-                                        <div className="space-y-4">
-                                            <UnitAwareInput label="Pressure (P1)" unitType="pressure" system={unitSystem} value={validationState.P1} onChange={v => setValidationState({ ...validationState, P1: Number(v) })} />
-                                            <UnitAwareInput label="Temperature (T1)" unitType="temp" system={unitSystem} value={validationState.T1} onChange={v => setValidationState({ ...validationState, T1: Number(v) })} />
-                                        </div>
-                                    </Card>
-                                    <Card title="Final State (State 2)">
-                                        <div className="space-y-4">
-                                            <UnitAwareInput label="Pressure (P2)" unitType="pressure" system={unitSystem} value={validationState.P2} onChange={v => setValidationState({ ...validationState, P2: Number(v) })} />
-                                            <UnitAwareInput label="Temperature (T2)" unitType="temp" system={unitSystem} value={validationState.T2} onChange={v => setValidationState({ ...validationState, T2: Number(v) })} />
-                                        </div>
-                                    </Card>
-                                    <Card title="Process Interaction">
-                                        <div className="space-y-4">
-                                            <UnitAwareInput label="Heat Transfer to System (Q)" unitType="specific_energy" system={unitSystem} value={validationState.Q} onChange={v => setValidationState({ ...validationState, Q: Number(v) })} />
-                                            <UnitAwareInput label="Surroundings Temp (T_surr)" unitType="temp" system={unitSystem} value={validationState.T_surr} onChange={v => setValidationState({ ...validationState, T_surr: Number(v) })} />
+                                            <div>
+                                                <p className="text-xs text-slate-500 uppercase font-semibold">Total Resistance (R)</p>
+                                                <p className="text-2xl font-bold text-slate-700">{condResult.R_total.toFixed(4)} K/W</p>
+                                            </div>
+                                            <div className="pt-4 border-t border-slate-100">
+                                                <p className="text-xs text-slate-500 uppercase font-semibold mb-2">Temp Distribution</p>
+                                                <div className="flex gap-2 overflow-x-auto pb-2">
+                                                    {condResult.temperatures.map((t, i) => (
+                                                        <div key={i} className="bg-white px-3 py-2 rounded border border-slate-200 min-w-[80px] text-center">
+                                                            <p className="text-[10px] text-slate-400">Node {i}</p>
+                                                            <p className="font-bold text-slate-800">{t.toFixed(1)}°C</p>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
                                         </div>
                                     </Card>
                                 </div>
-
-                                <Card title="Feasibility Analysis" className="h-fit">
-                                    <div className="flex flex-col items-center justify-center py-6 border-b border-slate-100 mb-6">
-                                        <div className={`w-24 h-24 rounded-full flex items-center justify-center text-4xl mb-4 ${validationResult.status === 'IMPOSSIBLE' ? 'bg-red-100 text-red-600' :
-                                            validationResult.status === 'REVERSIBLE' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'
-                                            }`}>
-                                            <i className={`fa-solid ${validationResult.status === 'IMPOSSIBLE' ? 'fa-ban' : 'fa-check'}`}></i>
-                                        </div>
-                                        <h3 className={`text-2xl font-bold ${validationResult.status === 'IMPOSSIBLE' ? 'text-red-700' :
-                                            validationResult.status === 'REVERSIBLE' ? 'text-blue-700' : 'text-emerald-700'
-                                            }`}>
-                                            {validationResult.status}
-                                        </h3>
-                                        <p className="text-slate-500 text-sm mt-1">According to 2nd Law of Thermodynamics</p>
-                                    </div>
-
-                                    <div className="space-y-4">
-                                        <div className="flex justify-between items-center p-3 rounded-lg bg-slate-50">
-                                            <span className="text-sm font-medium text-slate-600">System Entropy Change (ΔSsys)</span>
-                                            <span className="font-bold text-slate-800">{validationResult.dS_sys.toFixed(4)} kJ/kg.K</span>
-                                        </div>
-                                        <div className="flex justify-between items-center p-3 rounded-lg bg-slate-50">
-                                            <span className="text-sm font-medium text-slate-600">Surr. Entropy Change (ΔSsurr)</span>
-                                            <span className="font-bold text-slate-800">{validationResult.dS_surr.toFixed(4)} kJ/kg.K</span>
-                                        </div>
-                                        <div className="flex justify-between items-center p-3 rounded-lg bg-slate-100 border border-slate-200">
-                                            <span className="text-sm font-bold text-slate-700">Total Entropy Gen (Sgen)</span>
-                                            <span className={`font-bold ${validationResult.S_gen >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                                                {validationResult.S_gen.toFixed(4)} kJ/kg.K
-                                            </span>
-                                        </div>
-                                    </div>
-                                </Card>
                             </div>
-                        </div>
-                    )}
+                        )
+                    }
 
-                </main>
-            </div>
-        </div>
+                    {/* --- CONVECTION MODULE --- */}
+                    {
+                        activeModule === ModuleType.CONVECTION && (
+                            <div className="max-w-4xl mx-auto space-y-6">
+                                <h2 className="text-2xl font-bold text-slate-800">Convection Heat Transfer</h2>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <Card title="Parameters">
+                                        <div className="space-y-4">
+                                            <UnitAwareInput label="Heat Transfer Coeff (h)" unitType="u_value" system={unitSystem} value={convState.h} onChange={v => setConvState({ ...convState, h: Number(v) })} />
+                                            <UnitAwareInput label="Surface Temp (Ts)" unitType="temp_C" system={unitSystem} value={convState.T_surf} onChange={v => setConvState({ ...convState, T_surf: Number(v) })} />
+                                            <UnitAwareInput label="Fluid Temp (T∞)" unitType="temp_C" system={unitSystem} value={convState.T_inf} onChange={v => setConvState({ ...convState, T_inf: Number(v) })} />
+                                            <UnitAwareInput label="Surface Area" unitType="area" system={unitSystem} value={convState.area} onChange={v => setConvState({ ...convState, area: Number(v) })} />
+                                        </div>
+                                    </Card>
+                                    <Card title="Results" className="bg-blue-50/50 border-blue-100">
+                                        <div>
+                                            <p className="text-xs text-slate-500 uppercase font-semibold">Heat Transfer Rate (Q)</p>
+                                            <p className="text-4xl font-bold text-blue-700">{convResult.Q_dot.toFixed(2)} W</p>
+                                            <p className="text-sm text-slate-400 mt-1">{(convResult.Q_dot / 1000).toFixed(3)} kW</p>
+                                        </div>
+                                    </Card>
+                                </div>
+                            </div>
+                        )
+                    }
+
+                    {/* --- RADIATION MODULE --- */}
+                    {
+                        activeModule === ModuleType.RADIATION && (
+                            <div className="max-w-4xl mx-auto space-y-6">
+                                <h2 className="text-2xl font-bold text-slate-800">Radiation Heat Transfer</h2>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <Card title="Parameters">
+                                        <div className="space-y-4">
+                                            <InputField label="Emissivity (ε)" value={radState.epsilon} onChange={v => setRadState({ ...radState, epsilon: Number(v) })} />
+                                            <UnitAwareInput label="Surface Temp (Ts)" unitType="temp_C" system={unitSystem} value={radState.T_surf} onChange={v => setRadState({ ...radState, T_surf: Number(v) })} />
+                                            <UnitAwareInput label="Surroundings Temp (Tsurr)" unitType="temp_C" system={unitSystem} value={radState.T_surr} onChange={v => setRadState({ ...radState, T_surr: Number(v) })} />
+                                            <UnitAwareInput label="Surface Area" unitType="area" system={unitSystem} value={radState.area} onChange={v => setRadState({ ...radState, area: Number(v) })} />
+                                        </div>
+                                    </Card>
+                                    <Card title="Results" className="bg-orange-50/50 border-orange-100">
+                                        <div>
+                                            <p className="text-xs text-slate-500 uppercase font-semibold">Heat Transfer Rate (Q)</p>
+                                            <p className="text-4xl font-bold text-orange-700">{radResult.Q_dot.toFixed(2)} W</p>
+                                            <p className="text-sm text-slate-400 mt-1">{(radResult.Q_dot / 1000).toFixed(3)} kW</p>
+                                        </div>
+                                    </Card>
+                                </div>
+                            </div>
+                        )
+                    }
+
+                    {
+                        activeModule === ModuleType.VALIDATION && (
+                            <div className="max-w-4xl mx-auto space-y-6">
+                                <h2 className="text-2xl font-bold text-slate-800">Process Feasibility Validator (2nd Law)</h2>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-6">
+                                        <Card title="Initial State (State 1)">
+                                            <div className="space-y-4">
+                                                <UnitAwareInput label="Pressure (P1)" unitType="pressure" system={unitSystem} value={validationState.P1} onChange={v => setValidationState({ ...validationState, P1: Number(v) })} />
+                                                <UnitAwareInput label="Temperature (T1)" unitType="temp" system={unitSystem} value={validationState.T1} onChange={v => setValidationState({ ...validationState, T1: Number(v) })} />
+                                            </div>
+                                        </Card>
+                                        <Card title="Final State (State 2)">
+                                            <div className="space-y-4">
+                                                <UnitAwareInput label="Pressure (P2)" unitType="pressure" system={unitSystem} value={validationState.P2} onChange={v => setValidationState({ ...validationState, P2: Number(v) })} />
+                                                <UnitAwareInput label="Temperature (T2)" unitType="temp" system={unitSystem} value={validationState.T2} onChange={v => setValidationState({ ...validationState, T2: Number(v) })} />
+                                            </div>
+                                        </Card>
+                                        <Card title="Process Interaction">
+                                            <div className="space-y-4">
+                                                <UnitAwareInput label="Heat Transfer to System (Q)" unitType="specific_energy" system={unitSystem} value={validationState.Q} onChange={v => setValidationState({ ...validationState, Q: Number(v) })} />
+                                                <UnitAwareInput label="Surroundings Temp (T_surr)" unitType="temp" system={unitSystem} value={validationState.T_surr} onChange={v => setValidationState({ ...validationState, T_surr: Number(v) })} />
+                                            </div>
+                                        </Card>
+                                    </div>
+
+                                    <Card title="Feasibility Analysis" className="h-fit">
+                                        <div className="flex flex-col items-center justify-center py-6 border-b border-slate-100 mb-6">
+                                            <div className={`w-24 h-24 rounded-full flex items-center justify-center text-4xl mb-4 ${validationResult.status === 'IMPOSSIBLE' ? 'bg-red-100 text-red-600' :
+                                                validationResult.status === 'REVERSIBLE' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'
+                                                }`}>
+                                                <i className={`fa-solid ${validationResult.status === 'IMPOSSIBLE' ? 'fa-ban' : 'fa-check'}`}></i>
+                                            </div>
+                                            <h3 className={`text-2xl font-bold ${validationResult.status === 'IMPOSSIBLE' ? 'text-red-700' :
+                                                validationResult.status === 'REVERSIBLE' ? 'text-blue-700' : 'text-emerald-700'
+                                                }`}>
+                                                {validationResult.status}
+                                            </h3>
+                                            <p className="text-slate-500 text-sm mt-1">According to 2nd Law of Thermodynamics</p>
+                                        </div>
+
+                                        <div className="space-y-4">
+                                            <div className="flex justify-between items-center p-3 rounded-lg bg-slate-50">
+                                                <span className="text-sm font-medium text-slate-600">System Entropy Change (ΔSsys)</span>
+                                                <span className="font-bold text-slate-800">{validationResult.dS_sys.toFixed(4)} kJ/kg.K</span>
+                                            </div>
+                                            <div className="flex justify-between items-center p-3 rounded-lg bg-slate-50">
+                                                <span className="text-sm font-medium text-slate-600">Surr. Entropy Change (ΔSsurr)</span>
+                                                <span className="font-bold text-slate-800">{validationResult.dS_surr.toFixed(4)} kJ/kg.K</span>
+                                            </div>
+                                            <div className="flex justify-between items-center p-3 rounded-lg bg-slate-100 border border-slate-200">
+                                                <span className="text-sm font-bold text-slate-700">Total Entropy Gen (Sgen)</span>
+                                                <span className={`font-bold ${validationResult.S_gen >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                                    {validationResult.S_gen.toFixed(4)} kJ/kg.K
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </Card>
+                                </div>
+                            </div>
+                        )
+                    }
+
+                </main >
+            </div >
+        </div >
     );
 };
 

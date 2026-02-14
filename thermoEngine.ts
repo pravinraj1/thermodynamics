@@ -116,7 +116,13 @@ export const thermoEngine = {
       T3,
       P3,
       P1,
-      q_in
+      // Return approx state points for visualization
+      states: {
+        1: { P: P1, T: 45, phase: "Saturated Liquid" }, // Condenser Outlet
+        2: { P: P3, T: 45, phase: "Compressed Liquid" }, // Pump Outlet (Simplified isentropic T rise negligible)
+        3: { P: P3, T: T3, phase: "Superheated Vapor" }, // Boiler Outlet
+        4: { P: P1, T: 45, phase: "Wet Mixture" }        // Turbine Outlet (Simplified T drop)
+      }
     };
   },
 
@@ -138,13 +144,21 @@ export const thermoEngine = {
     const efficiency = (1 - (1 / Math.pow(r, GAMMA_AIR - 1)) * ((Math.pow(rc, GAMMA_AIR) - 1) / (GAMMA_AIR * (rc - 1)))) * 100;
     const MEP = w_net / (v1 - v2);
 
-    return { T2, T3, T4, w_net, efficiency, MEP };
+    const P2 = P1 * Math.pow(r, GAMMA_AIR);
+    const P3 = P2; // Isobaric Heat Addition
+    const P4 = P3 * Math.pow(rc / r, GAMMA_AIR); // Approx expansion
+
+    return {
+      T2, T3, T4,
+      P2, P3, P4,
+      w_net, efficiency, MEP
+    };
   },
 
   /**
    * Brayton Cycle (Gas Turbine)
    */
-  calculateBraytonCycle: (rp: number, T1: number, T3: number) => {
+  calculateBraytonCycle: (rp: number, T1: number, T3: number, P1: number = 100) => {
     const { GAMMA_AIR, Cp_AIR } = PHYSICAL_CONSTANTS;
 
     // Isentropic Compression (1-2)
@@ -161,7 +175,17 @@ export const thermoEngine = {
     const efficiency = (w_net / q_in) * 100;
     const bwr = w_comp / w_turb; // Back Work Ratio
 
-    return { T2, T4, w_comp, w_turb, w_net, efficiency, bwr };
+    const P2 = P1 * Math.pow(rp, GAMMA_AIR); // Should be rp but let's check formula P2/P1 = (T2/T1)^(k/k-1) -> P2 = P1 * (T2/T1)^(k/k-1) -> P2 = P1 * rp (defn of rp)
+    // Actually rp is P2/P1 so P2 is simply P1 * rp
+    const P2_val = P1 * rp;
+    const P3 = P2_val;
+    const P4 = P1;
+
+    return {
+      T2, T4,
+      P2: P2_val, P3, P4,
+      w_comp, w_turb, w_net, efficiency, bwr
+    };
   },
 
   /**

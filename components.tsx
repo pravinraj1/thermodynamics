@@ -146,13 +146,14 @@ export const TabButton: React.FC<{
   active: boolean;
   onClick: () => void;
   children: React.ReactNode;
-}> = ({ active, onClick, children }) => (
+  className?: string;
+}> = ({ active, onClick, children, className }) => (
   <button
     onClick={onClick}
     className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${active
       ? 'bg-blue-600 text-white shadow-md'
       : 'text-slate-600 hover:bg-slate-100'
-      }`}
+      } ${className || ''}`}
   >
     {children}
   </button>
